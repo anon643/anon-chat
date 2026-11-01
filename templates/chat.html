@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% if waiting %}
+        <div class="waiting">
+            <div class="spinner"></div>
+            <h2>Ищем собеседника...</h2>
+            <p>Пожалуйста, подождите. Как только кто-то зайдёт — чат откроется автоматически.</p>
+            <a href="{{ url_for('leave') }}"><button>Отменить</button></a>
+        </div>
+        <script>
+            // Каждые 2 секунды спрашиваем сервер: "Пара найдена?"
+            setInterval(function() {
+                fetch('/status')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'paired') {
+                            window.location.href = '/chat';
+                        }
+                    });
+            }, 2000);
+        </script>
+    {% else %}
+        <h1>Чат</h1>
+        <div id="messages"></div>
+        <form id="send-form" style="display: flex; gap: 10px;">
+            <input type="text" id="msg-input" placeholder="Напишите сообщение..." autocomplete="off" style="flex: 1;">
+            <button type="submit" style="padding: 10px 20px;">Отправить</button>
+        </form>
+        <p style="text-align: center; margin-top: 15px;">
+            <a href="{{ url_for('leave') }}"><button style="background: #555;">Выйти из чата</button></a>
+        </p>
+
+        <script>
+            const messagesDiv = document.getElementById('messages');
+            const input = document.getElementById('msg-input');
+            const form = document.getElementById('send-form');
+
+            // Загружаем сообщения
+            function loadMessages() {
+                fetch('/messages')
+                    .then(r => r.json())
+                    .then(data => {
+                        messagesDiv.innerHTML = '';
+                        if (data.messages.length === 0) {
+                            messagesDiv.innerHTML = '<p style="color:#888; text-align:center;">Сообщений пока нет. Напишите первым!</p>';
+                        }
+                        data.messages.forEach(m => {
+                            const div = document.createElement('div');
+                            div.className = 'msg ' + (m.mine ? 'mine' : 'theirs');
+                            div.textContent = m.text;
+                            messagesDiv.appendChild(div);
+                        });
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    });
+            }
+
+            // Отправка
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const text = input.value.trim();
+                if (!text) return;
+                input.value = '';
+                fetch('/send', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'text=' + encodeURIComponent(text)
+                }).then(() => loadMessages());
+            });
+
+            // Обновляем каждые 1.5 секунды
+            setInterval(loadMessages, 1500);
+            loadMessages();
+        </script>
+    {% endif %}
+{% endblock %}
